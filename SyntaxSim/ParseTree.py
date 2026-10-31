@@ -6,8 +6,13 @@ from html import escape
 from pathlib import Path
 import sys
 
+
 from lark import Lark, Token, Tree
 from lark.exceptions import LarkError
+
+from lark.parsers.earley_forest import TreeForestTransformer
+import re
+import os
 
 
 @dataclass
@@ -20,13 +25,25 @@ class _DiagramNode:
     depth: int = 0
 
 
-def _build_diagram_node(node: Tree | Token) -> _DiagramNode:
+def _build_diagram_node(node: Tree | Token, rule_priorities) -> _DiagramNode:
     if isinstance(node, Tree):
-        return _DiagramNode(
-            str(node.data),
-            "rule",
-            [_build_diagram_node(child) for child in node.children],
-        )
+        
+        try:
+            return _DiagramNode(
+
+                # NODE NAMING
+                str(node.data + "." + str(0 if rule_priorities[node.data] is None else int(rule_priorities[node.data]))),
+                "rule",
+                [_build_diagram_node(child, rule_priorities) for child in node.children],
+            )
+        except:
+            return _DiagramNode(
+
+                # NODE NAMING
+                str(node.data),
+                "rule",
+                [_build_diagram_node(child, rule_priorities) for child in node.children],
+            )
 
     value = str(node)
     visible_value = value.strip()
@@ -69,12 +86,32 @@ def _draw_edges(node: _DiagramNode, vertical_gap: float, top: float) -> str:
 def _draw_nodes(node: _DiagramNode, vertical_gap: float, top: float) -> str:
     y = top + node.depth * vertical_gap
     label = escape(node.label)
-    node_svg = (
-        f'<g class="{node.kind}">'
-        f'<title>{label}</title>'
-        f'<text x="{node.x:.1f}" y="{y:.1f}" text-anchor="middle">{label}</text>'
-        "</g>"
-    )
+    if node.kind == 'rule':
+        try:
+            rule_name = label.split(".")[0]
+            priority_num = "." + label.split(".")[1]
+            node_svg = (
+                f'<g class="{node.kind}">'
+                f'<title>{label}</title>'
+                f"""<text x="{node.x:.1f}" y="{y:.1f}" text-anchor="middle">
+                <tspan id="rulename">{rule_name}</tspan><tspan id="priority">{priority_num}</tspan></text>"""
+                "</g>"
+            )
+        except:
+            node_svg = (
+                f'<g class="{node.kind}">'
+                f'<title>{label}</title>'
+                f"""<text x="{node.x:.1f}" y="{y:.1f}" text-anchor="middle">
+                <tspan id="rulename">{label}</tspan></text>"""
+                "</g>"
+            )
+    else:
+        node_svg = (
+            f'<g class="{node.kind}">'
+            f'<title>{label}</title>'
+            f'<text x="{node.x:.1f}" y="{y:.1f}" text-anchor="middle">{label}</text>'
+            "</g>"
+        )
     return node_svg + "".join(
         _draw_nodes(child, vertical_gap, top) for child in node.children
     )
@@ -84,10 +121,10 @@ def _tree_depth(node: _DiagramNode) -> int:
     return max((_tree_depth(child) for child in node.children), default=node.depth)
 
 
-def render_parse_tree(tree: Tree, title: str = "Parse tree") -> str:
+def render_parse_tree(tree: Tree, title: str = "Parse tree", rule_priorities=dict()) -> str:
     """Return a self-contained HTML document with a linguistic-style SVG tree."""
     safe_title = escape(title)
-    root = _build_diagram_node(tree)
+    root = _build_diagram_node(tree, rule_priorities)
     margin = 32
     top = 34
     vertical_gap = 58
@@ -108,7 +145,8 @@ def render_parse_tree(tree: Tree, title: str = "Parse tree") -> str:
     .diagram {{ border: 1px solid #dadce0; border-radius: 8px; overflow: auto; padding: 1rem; }}
     svg {{ display: block; font: 16px/1.2 system-ui, sans-serif; }}
     .edge {{ stroke: #202124; stroke-width: 1.2; }}
-    .rule text {{ fill: #0000ff; }}
+    .rule #rulename {{ fill: #0000ff; }}
+    .rule #priority {{ fill: #ff0000; }}
     .terminal text {{ fill: #008000; }}
   </style>
 </head>
@@ -140,13 +178,47 @@ def parse_file(
         else source_file.with_name(f"{source_file.stem}.parse-tree.html")
     )
 
+    showAllRules = False
+    if showAllRules:
+        with open(grammar_path, 'r') as f:
+            grammar_content = f.read()
+            grammar_content = re.sub(
+                r"(?m)^(\s*)\?([a-z_]\w*)(?=\s*(?:\.\d+)?\s*:)",
+                r"\1\2",
+                grammar_content
+            )
+            with open('Explicit', 'w') as fw:
+                fw.write(grammar_content)
+                fw.close()
+    
+        grammar_file = Path('Explicit')
+
     lark = Lark.open(str(grammar_file), parser=parser, start="root",  
-                     #ambiguity="explicit"
+                     #ambiguity="explicit",
+                     #lexer="dynamic",
                      )
     source = source_file.read_text(encoding="utf-8")
+
+
     tree = lark.parse(source)
+
+    priorities = {
+        rule.origin.name: rule.options.priority
+        for rule in lark.rules
+    }  
+
+    try:
+        print(type(tree))
+        print(tree.is_ambiguous)
+
+        # Convert the forest into a regular tree.
+        trees = TreeForestTransformer().transform(tree)
+        print(trees.pretty())
+    except:
+        pass
+
     destination.write_text(
-        render_parse_tree(tree, f"Parse tree: {source_file.name}"),
+        render_parse_tree(tree, f"Parse tree: {source_file.name}", rule_priorities=priorities),
         encoding="utf-8",
     )
     return destination
@@ -187,5 +259,5 @@ if __name__ == "__main__":
 
 """
 use this command: 
-    python3 LucaGrammarScheme.py Gram Main.text
+    python3 ParseTree.py Grammar Main
 """

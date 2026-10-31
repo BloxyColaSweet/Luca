@@ -1,0 +1,79 @@
+
+root: expression
+
+expression: arithmetic
+           | literal
+
+singular: literal
+
+arithmetic.3: summing
+              | factoring
+              | powering
+              | hyperfour
+
+summing.0: addition    
+         | subtraction 
+summing_priority.4: summing
+left_to_right_summing: summing_priority | prioritized_factoring | lower_priority_expr
+prioritized_factoring.1: factoring
+ensure_summing_precedence: prioritized_factoring | lower_priority_expr
+addition:    left_to_right_summing _add_sign ensure_summing_precedence
+subtraction: left_to_right_summing _sub_sign ensure_summing_precedence
+_add_sign:   "+"
+_sub_sign:   "-"
+
+?factoring.-1: multiplication
+             | division
+factoring_priority.4: factoring
+left_to_right_factoring: factoring_priority | lower_priority_expr
+prioritized_powering.1: powering
+ensure_factoring_precedence: prioritized_powering | lower_priority_expr
+multiplication: left_to_right_factoring _mul_sign ensure_factoring_precedence
+division:       left_to_right_factoring _div_sign ensure_factoring_precedence
+_mul_sign:      "*"
+_div_sign:      "/"
+
+?powering.-2: exponentiation 
+            | nth_rooting 
+            | nth_logarithm
+powering_priority.4: powering
+left_to_right_powering: powering_priority | lower_priority_expr
+prioritized_hyperfour.1: hyperfour
+ensure_powering_precedence: prioritized_hyperfour | lower_priority_expr
+exponentiation: left_to_right_powering _exp_sign ensure_powering_precedence
+nth_rooting:    left_to_right_powering _nroot_sign ensure_powering_precedence
+nth_logarithm:  left_to_right_powering _nlog_sign ensure_powering_precedence
+_exp_sign: "^"
+_nroot_sign: "\\^"
+_nlog_sign: "-^"
+
+?hyperfour.-3: tetration 
+             | nth_superrooting 
+             | nth_superlogarithm
+hyperfour_priority.4: hyperfour
+left_to_right_hyperfouring: hyperfour_priority | lower_priority_expr
+//
+//
+tetration:          left_to_right_hyperfouring _tet_sign  expression
+nth_superrooting:   left_to_right_hyperfouring _nsrt_sign expression
+nth_superlogarithm: left_to_right_hyperfouring _nslg_sign expression
+_tet_sign: "^^"
+_nsrt_sign: "\\^^"
+_nslg_sign: "-^^"
+
+?lower_priority_expr.-10: expression
+high_priority_single.1: singular
+?singular_first_or_expression.-400: high_priority_single | lower_priority_expr
+
+
+literal.2: string
+            | character
+            | boolean
+            | integer
+            | float
+
+integer:    /(\s*)[\d_]*\d[\d_]*(\s*)/
+float:      /(\s*)[\d_]*\d[\d_]*\.[\d_]*\d[\d_]*(\s*)/
+string:     /(\s*)"(?:\\.|[^"\\\r\n])*"(\s*)/
+character:  /(\s*)'(?:\\.|[^'\\\r\n])'(\s*)/
+boolean:    /(\s*)(True|False)(\s*)/

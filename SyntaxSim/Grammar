@@ -1,1 +1,111 @@
 
+root: expression
+
+?expression: arithmetic
+           | parenthesis
+           | identifier
+           | literal
+
+?arithmetic.3: summing
+             | factoring
+             | powering
+             | hyperfour
+             | unarysign
+
+?summing.-8: addition    
+         | subtraction 
+?summing_priority.64: summing
+?left_to_right_summing: summing_priority | lower_priority_expr
+?prioritized_factoring.64: factoring
+?ensure_summing_precedence: prioritized_factoring | lower_priority_expr
+addition:    augend _add_sign addend
+?augend:      left_to_right_summing
+?addend:      ensure_summing_precedence
+subtraction: subtrahend _sub_sign minuend
+?subtrahend:  left_to_right_summing
+?minuend:     ensure_summing_precedence
+_add_sign:   "+"
+_sub_sign:   "-"
+
+?factoring.-16: multiplication
+             | division
+?factoring_priority.32: factoring
+?left_to_right_factoring: factoring_priority | lower_priority_expr
+?prioritized_powering.32: powering
+?ensure_factoring_precedence: prioritized_powering | lower_priority_expr
+multiplication: multiplicand _mul_sign multiplier
+?multiplicand:   left_to_right_factoring
+?multiplier:     ensure_factoring_precedence
+division:       dividend _div_sign divisor
+?dividend:       left_to_right_factoring
+?divisor:        ensure_factoring_precedence
+_mul_sign:      "*"
+_div_sign:      "/"
+
+?powering.-32: exponentiation 
+            | nth_rooting 
+            | nth_logarithm
+?powering_priority.16: powering
+?left_to_right_powering: powering_priority | lower_priority_expr
+?prioritized_hyperfour.16: hyperfour
+?ensure_powering_precedence: prioritized_hyperfour | lower_priority_expr
+exponentiation: potentiand _exp_sign indexer
+?potentiand:     left_to_right_powering
+?indexer:        ensure_powering_precedence
+nth_rooting:    degree _nroot_sign radicand
+?degree:         left_to_right_powering
+?radicand:       ensure_powering_precedence
+nth_logarithm:  baselog _nlog_sign logarand
+?baselog:        left_to_right_powering
+?logarand:       ensure_powering_precedence
+_exp_sign: "^"
+_nroot_sign: "\\^"
+_nlog_sign: "-^"
+
+?hyperfour.-64: tetration 
+             | nth_superrooting 
+             | nth_superlogarithm
+?hyperfour_priority.8: hyperfour
+?left_to_right_hyperfouring: hyperfour_priority | lower_priority_expr
+//prioritized_future_lower_operator
+?prioritized_unarysigns.8: unarysign 
+?ensure_hyperfouring_precedence: prioritized_unarysigns | lower_priority_expr
+tetration:          tetrand _tet_sign  hyperindex
+?tetrand:           left_to_right_hyperfouring
+?hyperindex:        ensure_hyperfouring_precedence
+nth_superrooting:   hyperdegree _nsrt_sign superradicand
+?hyperdegree:       left_to_right_hyperfouring
+?superradicand:     ensure_hyperfouring_precedence
+nth_superlogarithm: hyperbase _nslg_sign superlogerand
+?hyperbase:         left_to_right_hyperfouring
+?superlogerand:     ensure_hyperfouring_precedence
+_tet_sign: "^^"
+_nsrt_sign: "\\^^"
+_nslg_sign: "-^^"
+
+?unarysign.-128: positive
+               | negative
+positive: pos_sign expression
+negative: neg_sign expression
+?neg_sign: /(\s*)(\-)(\s*)/
+?pos_sign: /(\s*)(\+)(\s*)/
+
+?lower_priority_expr.-1: expression
+
+parenthesis.-3: _LEFT_PARENTHESIS expression _RIGHT_PARENTHESIS
+_LEFT_PARENTHESIS: /(\s*)(\()(\s*)/
+_RIGHT_PARENTHESIS: /(\s*)(\))(\s*)/
+
+?literal.-5: string
+            | character
+            | boolean
+            | integer
+            | float
+
+identifier.-4: /(\s*)[A-Za-z_][A-Za-z0-9_]*(\s*)/
+
+integer:    /(\s*)[\d_]*\d[\d_]*(\s*)/
+float:      /(\s*)[\d_]*\d[\d_]*\.[\d_]*\d[\d_]*(\s*)/
+string:     /(\s*)"(?:\\.|[^"\\\r\n])*"(\s*)/
+character:  /(\s*)'(?:\\.|[^'\\\r\n])'(\s*)/
+boolean:    /(\s*)(True|False)(\s*)/
